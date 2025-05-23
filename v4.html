@@ -1,0 +1,453 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass-Spring SHM Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(to bottom, #e6f3ff, #f0f0f0);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .controls label {
+            margin-right: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .controls input, .controls select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        .display {
+            margin-top: 20px;
+            font-size: 16px;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label>Simulation Mode: 
+            <select id="mode">
+                <option value="classical">Classical</option>
+                <option value="quantum">Quantum</option>
+            </select>
+        </label>
+        <label>Number of Masses: 
+            <select id="numMasses">
+                <option value="1">1</option>
+                <option value="2">2</option>
+                <option value="3">3</option>
+                <option value="4">4</option>
+            </select>
+        </label>
+        <label>Mass (kg): <input type="number" id="mass" value="1" min="0.1" step="0.1"></label>
+        <label>Spring Constant (N/m): <input type="number" id="k" value="10" min="1" step="1"></label>
+        <label>Damping Coefficient: <input type="number" id="damping" value="0" min="0" step="0.1"></label>
+        <label>Force Amplitude (N): <input type="number" id="F0" value="0" step="0.1"></label>
+        <label>Force Frequency (rad/s): <input type="number" id="omega" value="0" step="0.1"></label>
+        <label><input type="checkbox" id="nonlinear"> Nonlinear Spring</label>
+        <label>Nonlinear Alpha: <input type="number" id="alpha" value="0" step="0.1"></label>
+        <label>Quantum Number n: <input type="number" id="n" value="0" min="0" max="5" step="1"></label>
+        <label>Celestial Object: 
+            <select id="celestial">
+                <option value="9.8">Earth (g = 9.8 m/s²)</option>
+                <option value="3.7">Mercury (g = 3.7 m/s²)</option>
+                <option value="8.9">Venus (g = 8.9 m/s²)</option>
+                <option value="1.6">Moon (g = 1.6 m/s²)</option>
+                <option value="3.7">Mars (g = 3.7 m/s²)</option>
+                <option value="24.8">Jupiter (g = 24.8 m/s²)</option>
+                <option value="11.2">Saturn (g = 11.2 m/s²)</option>
+                <option value="8.9">Uranus (g = 8.9 m/s²)</option>
+                <option value="11.2">Neptune (g = 11.2 m/s²)</option>
+                <option value="0.62">Pluto (g = 0.62 m/s²)</option>
+            </select>
+        </label>
+        <button onclick="restart()">Restart Simulation</button>
+        <button onclick="exportData()">Export Data</button>
+    </div>
+    <div class="display" id="equation"></div>
+    <script>
+        let numMasses, masses = [], springs = [], b, F0, omega, nonlinear, alpha, g, t = 0;
+        let mode, m, k, n;
+        const history = { t: [], y_bottom: [], kEnergy: [], uSpring: [], uGrav: [] };
+        const maxPoints = 200;
+        const N = 3;
+        const r = 10;
+        const scale = 100;
+        const dt = 1 / 60;
+        const hbar = 1;
+
+        function factorial(n) {
+            if (n === 0) return 1;
+            let result = 1;
+            for (let i = 1; i <= n; i++) result *= i;
+            return result;
+        }
+
+        function hermite(n, z) {
+            switch(n) {
+                case 0: return 1;
+                case 1: return 2 * z;
+                case 2: return 4 * z*z - 2;
+                case 3: return 8 * z*z*z - 12 * z;
+                case 4: return 16 * z*z*z*z - 48 * z*z + 12;
+                case 5: return 32 * z*z*z*z*z - 160 * z*z*z + 120 * z;
+                default: return 0;
+            }
+        }
+
+        function probDensity(n, x, m, k, hbar) {
+            let omega = Math.sqrt(k / m);
+            let z = Math.sqrt(m * omega / hbar) * x;
+            let H = hermite(n, z);
+            let prefactor = 1 / (Math.pow(2, n) * factorial(n));
+            let gaussian = Math.exp(- (m * omega / hbar) * x * x);
+            return prefactor * Math.sqrt(m * omega / (Math.PI * hbar)) * H * H * gaussian;
+        }
+
+        function exportData() {
+            if (mode !== "classical") {
+                alert("Data export is available only in classical mode.");
+                return;
+            }
+            let csvContent = "time,position_bottom,kinetic_energy,spring_potential,gravitational_potential\n";
+            for (let i = 0; i < history.t.length; i++) {
+                csvContent += `${history.t[i]},${history.y_bottom[i]},${history.kEnergy[i]},${history.uSpring[i]},${history.uGrav[i]}\n`;
+            }
+            let blob = new Blob([csvContent], { type: 'text/csv' });
+            let link = document.createElement('a');
+            link.href = URL.createObjectURL(blob);
+            link.download = 'simulation_data.csv';
+            link.click();
+        }
+
+        function setup() {
+            createCanvas(800, 650);
+            frameRate(60);
+            initializeSimulation();
+        }
+
+        function initializeSimulation() {
+            mode = document.getElementById('mode').value;
+            numMasses = parseInt(document.getElementById('numMasses').value);
+            m = parseFloat(document.getElementById('mass').value);
+            k = parseFloat(document.getElementById('k').value);
+            let L = 0.5;
+            g = parseFloat(document.getElementById('celestial').value);
+            b = parseFloat(document.getElementById('damping').value);
+            F0 = parseFloat(document.getElementById('F0').value);
+            omega = parseFloat(document.getElementById('omega').value);
+            nonlinear = document.getElementById('nonlinear').checked;
+            alpha = parseFloat(document.getElementById('alpha').value);
+            n = parseInt(document.getElementById('n').value);
+
+            if (mode === "classical") {
+                masses = [];
+                springs = [];
+                for (let i = 0; i < numMasses; i++) {
+                    springs.push({ k: k, L: L });
+                    masses.push({ y: (i + 1) * L, v: 0, m: m });
+                }
+                t = 0;
+                history.t = [];
+                history.y_bottom = [];
+                history.kEnergy = [];
+                history.uSpring = [];
+                history.uGrav = [];
+            }
+        }
+
+        function updatePhysics(dt) {
+            let F = new Array(numMasses).fill(0);
+            for (let j = 0; j < numMasses; j++) {
+                let left_y = (j == 0) ? 0 : masses[j-1].y;
+                let delta_left = (masses[j].y - left_y) - springs[j].L;
+                let F_left = -(springs[j].k * delta_left);
+                if (nonlinear) F_left -= alpha * Math.pow(delta_left, 3);
+                F[j] += F_left;
+
+                if (j < numMasses - 1) {
+                    let right_y = masses[j+1].y;
+                    let delta_right = (right_y - masses[j].y) - springs[j+1].L;
+                    let F_right = springs[j+1].k * delta_right;
+                    if (nonlinear) F_right += alpha * Math.pow(delta_right, 3);
+                    F[j] += F_right;
+                }
+
+                F[j] += -b * masses[j].v;
+                F[j] += masses[j].m * g;
+                if (j == numMasses - 1 && F0 != 0) {
+                    F[j] += F0 * Math.cos(omega * t);
+                }
+            }
+
+            for (let j = 0; j < numMasses; j++) {
+                let a = F[j] / masses[j].m;
+                masses[j].v += a * dt;
+                masses[j].y += masses[j].v * dt;
+            }
+        }
+
+        function draw() {
+            background(255);
+            noFill();
+
+            fill(0);
+            textSize(24);
+            textAlign(CENTER);
+            text("Mass-Spring Simple Harmonic Motion", width / 2, 30);
+
+            mode = document.getElementById('mode').value;
+            m = parseFloat(document.getElementById('mass').value);
+            k = parseFloat(document.getElementById('k').value);
+            n = parseInt(document.getElementById('n').value);
+
+            if (mode === "classical") {
+                stroke(0);
+                line(390, 0, 410, 0);
+
+                for (let i = 0; i < numMasses; i++) {
+                    let startY = (i == 0) ? 0 : masses[i-1].y * scale;
+                    let endY = masses[i].y * scale;
+                    noFill();
+                    stroke(0);
+                    beginShape();
+                    for (let j = 0; j <= 20; j++) {
+                        let t_spring = j / 20;
+                        let theta = 2 * PI * N * t_spring;
+                        let px = 400 + r * cos(theta);
+                        let py = startY + t_spring * (endY - startY);
+                        curveVertex(px, py);
+                    }
+                    endShape();
+                }
+
+                for (let mass of masses) {
+                    let screenY = mass.y * scale;
+                    fill(150);
+                    rect(380, screenY - 20, 40, 40);
+                }
+
+                updatePhysics(dt);
+                history.t.push(t);
+                history.y_bottom.push(masses[numMasses-1].y);
+                let totalKE = 0, totalUS = 0, totalUG = 0;
+                for (let j = 0; j < numMasses; j++) {
+                    totalKE += 0.5 * masses[j].m * masses[j].v * masses[j].v;
+                    let delta = (masses[j].y - (j == 0 ? 0 : masses[j-1].y)) - springs[j].L;
+                    totalUS += 0.5 * springs[j].k * delta * delta;
+                    totalUG += -masses[j].m * g * masses[j].y;
+                }
+                history.kEnergy.push(totalKE);
+                history.uSpring.push(totalUS);
+                history.uGrav.push(totalUG);
+                if (history.t.length > maxPoints) {
+                    history.t.shift();
+                    history.y_bottom.shift();
+                    history.kEnergy.shift();
+                    history.uSpring.shift();
+                    history.uGrav.shift();
+                }
+
+                let pos_yMin = Math.min(...history.y_bottom) - 0.2 * (Math.max(...history.y_bottom) - Math.min(...history.y_bottom));
+                let pos_yMax = Math.max(...history.y_bottom) + 0.2 * (Math.max(...history.y_bottom) - Math.min(...history.y_bottom));
+                drawGraph(50, 400, 300, 150, history.t, history.y_bottom, 'Bottom Mass Position vs. Time', pos_yMin, pos_yMax, color(0, 0, 255), 'Position (m)');
+
+                let allEnergies = history.kEnergy.concat(history.uSpring).concat(history.uGrav);
+                if (allEnergies.length > 0) {
+                    let energyMin = Math.min(...allEnergies);
+                    let energyMax = Math.max(...allEnergies);
+                    let range = energyMax - energyMin;
+                    let yMin_energy = energyMin - 0.2 * range;
+                    let yMax_energy = energyMax + 0.2 * range;
+                    drawGraph(450, 400, 300, 150, history.t, history.kEnergy, 'Energy vs. Time', yMin_energy, yMax_energy, color(255, 0, 0), 'Energy (J)', [
+                        { data: history.uSpring, color: color(0, 255, 0), label: 'U_spring' },
+                        { data: history.uGrav, color: color(0, 0, 255), label: 'U_grav' }
+                    ]);
+
+                    fill(0);
+                    textSize(12);
+                    text("Kinetic Energy", 450, 570);
+                    fill(255, 0, 0);
+                    rect(450 + textWidth("Kinetic Energy") + 5, 570 - 6, 12, 12);
+                    fill(0);
+                    text("Spring Potential", 450, 590);
+                    fill(0, 255, 0);
+                    rect(450 + textWidth("Spring Potential") + 5, 590 - 6, 12, 12);
+                    fill(0);
+                    text("Gravitational Potential", 450, 610);
+                    fill(0, 0, 255);
+                    rect(450 + textWidth("Gravitational Potential") + 5, 610 - 6, 12, 12);
+                }
+
+                let equationText = '';
+                for (let i = 0; i < numMasses; i++) {
+                    equationText += `Mass ${i+1}: y = ${masses[i].y.toFixed(2)} m, v = ${masses[i].v.toFixed(2)} m/s<br>`;
+                }
+                document.getElementById('equation').innerHTML = equationText;
+
+                t += dt;
+            } else if (mode === "quantum") {
+                let omega = Math.sqrt(k / m);
+                let xMax = 5;
+                let nMax = 10;
+                let E_max = omega * (nMax + 0.5);
+
+                const xLeft = 50;
+                const xRight = 750;
+                const yBottom = 600;
+                const yTop = 50;
+
+                function xToScreen(x) {
+                    return map(x, -xMax, xMax, xLeft, xRight);
+                }
+
+                function EToScreen(E) {
+                    return map(E, 0, E_max, yBottom, yTop);
+                }
+
+                stroke(0);
+                line(xLeft, yBottom, xRight, yBottom);
+                line(xLeft, yTop, xLeft, yBottom);
+
+                textSize(14);
+                textAlign(CENTER);
+                text("x (m)", width / 2, yBottom + 20);
+                textAlign(RIGHT);
+                text("Energy", xLeft - 10, yTop + (yBottom - yTop)/2);
+
+                stroke(0);
+                noFill();
+                beginShape();
+                for (let x = -xMax; x <= xMax; x += 0.01) {
+                    let V = 0.5 * k * x * x;
+                    if (V < E_max) {
+                        let x_screen = xToScreen(x);
+                        let y_screen = EToScreen(V);
+                        vertex(x_screen, y_screen);
+                    }
+                }
+                endShape();
+
+                for (let i = 0; i <= nMax; i++) {
+                    let E_i = hbar * omega * (i + 0.5);
+                    if (E_i < E_max) {
+                        let y_screen = EToScreen(E_i);
+                        stroke(200);
+                        line(xLeft, y_screen, xRight, y_screen);
+                        fill(0);
+                        textAlign(LEFT);
+                        text("n=" + i, xRight + 10, y_screen);
+                    }
+                }
+
+                if (n >= 0 && n <= 5) {
+                    let E_n = hbar * omega * (n + 0.5);
+                    let y_base = EToScreen(E_n);
+                    let height_wave = 20;
+                    let max_prob = 0;
+                    for (let x = -xMax; x <= xMax; x += 0.01) {
+                        let prob = probDensity(n, x, m, k, hbar);
+                        if (prob > max_prob) max_prob = prob;
+                    }
+                    let scale_prob = height_wave / max_prob;
+
+                    stroke(255, 0, 0);
+                    noFill();
+                    beginShape();
+                    for (let x = -xMax; x <= xMax; x += 0.01) {
+                        let prob = probDensity(n, x, m, k, hbar);
+                        let x_screen = xToScreen(x);
+                        let y_screen = y_base - prob * scale_prob;
+                        vertex(x_screen, y_screen);
+                    }
+                    endShape();
+                }
+
+                document.getElementById('equation').innerHTML = `Quantum State n = ${n}<br>Energy E_n = ${omega * (n + 0.5).toFixed(2)}`;
+            }
+        }
+
+        function drawGraph(x, y, w, h, xData, yData, title, yMin, yMax, col, yLabel, extraCurves = []) {
+            stroke(0);
+            noFill();
+            rect(x, y, w, h);
+            fill(0);
+            textSize(14);
+            text(title, x + w/2 - textWidth(title)/2, y - 10);
+            text("Time (s)", x + w/2, y + h + 20);
+            push();
+            translate(x - 40, y + h/2);
+            rotate(-PI / 2);
+            text(yLabel, 0, 0);
+            pop();
+            stroke(200);
+            for (let i = 0; i <= 5; i++) {
+                let gy = map(i / 5, 0, 1, y + h, y);
+                line(x, gy, x + w, gy);
+            }
+            noFill();
+            stroke(col);
+            beginShape();
+            for (let i = 0; i < xData.length; i++) {
+                let px = map(i, 0, maxPoints, x, x + w);
+                let py = map(yData[i], yMin, yMax, y + h, y);
+                vertex(px, py);
+            }
+            endShape();
+            for (let curve of extraCurves) {
+                stroke(curve.color);
+                beginShape();
+                for (let i = 0; i < xData.length; i++) {
+                    let px = map(i, 0, maxPoints, x, x + w);
+                    let py = map(curve.data[i], yMin, yMax, y + h, y);
+                    vertex(px, py);
+                }
+                endShape();
+            }
+        }
+
+        function restart() {
+            initializeSimulation();
+        }
+    </script>
+</body>
+</html>

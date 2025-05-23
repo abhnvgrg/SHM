@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass-Spring SHM Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+        body {
+            font-family: 'Segoe UI', Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background: linear-gradient(to bottom, #e6f3ff, #f0f0f0);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 1px solid #ccc;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+            background-color: #ffffff;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 10px;
+        }
+        .controls label {
+            margin-right: 10px;
+            font-weight: bold;
+            color: #333;
+        }
+        .controls input, .controls select {
+            padding: 8px;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+            font-size: 14px;
+        }
+        .controls button {
+            padding: 8px 16px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        .controls button:hover {
+            background-color: #45a049;
+        }
+        .display {
+            margin-top: 20px;
+            font-size: 16px;
+            color: black;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label>Mass (kg): <input type="number" id="mass" value="1" min="0.1" step="0.1"></label>
+        <label>Spring Constant (N/m): <input type="number" id="k" value="10" min="1" step="1"></label>
+        <label>Initial Position (m): <input type="number" id="x0" value="0.5" step="0.1"></label>
+        <label>Celestial Object: 
+            <select id="celestial">
+                <option value="9.8">Earth (g = 9.8 m/s²)</option>
+                <option value="3.7">Mercury (g = 3.7 m/s²)</option>
+                <option value="8.9">Venus (g = 8.9 m/s²)</option>
+                <option value="1.6">Moon (g = 1.6 m/s²)</option>
+                <option value="3.7">Mars (g = 3.7 m/s²)</option>
+                <option value="24.8">Jupiter (g = 24.8 m/s²)</option>
+                <option value="11.2">Saturn (g = 11.2 m/s²)</option>
+                <option value="8.9">Uranus (g = 8.9 m/s²)</option>
+                <option value="11.2">Neptune (g = 11.2 m/s²)</option>
+                <option value="0.62">Pluto (g = 0.62 m/s²)</option>
+            </select>
+        </label>
+        <button onclick="restart()">Restart Simulation</button>
+    </div>
+    <div class="display" id="equation"></div>
+    <script>
+        let mass = 1;
+        let k = 10;
+        let g = 9.8;
+        let x0 = 0.5;
+        let t = 0;
+        let x, v, omega, xEq;
+        let amplitude_mag, x_range_min, x_range_max;
+        const history = { x: [], t: [], kEnergy: [], uSpring: [], uGrav: [] };
+        const maxPoints = 200;
+        const N = 3;
+        const r = 10;
+
+        function setup() {
+            createCanvas(800, 650);
+            frameRate(60);
+            initializeSimulation();
+        }
+
+        function initializeSimulation() {
+            mass = parseFloat(document.getElementById('mass').value);
+            k = parseFloat(document.getElementById('k').value);
+            g = parseFloat(document.getElementById('celestial').value);
+            x0 = parseFloat(document.getElementById('x0').value);
+            omega = Math.sqrt(k / mass);
+            xEq = (mass * g) / k;
+            amplitude_mag = Math.abs(x0 - xEq);
+            x_range_min = xEq - amplitude_mag;
+            x_range_max = xEq + amplitude_mag;
+            t = 0;
+            x = x0;
+            v = 0;
+            history.x = [];
+            history.t = [];
+            history.kEnergy = [];
+            history.uSpring = [];
+            history.uGrav = [];
+        }
+
+        function draw() {
+            background(255);
+            noFill();
+            
+            fill(0);
+            textSize(24);
+            textAlign(CENTER);
+            text("Mass-Spring Simple Harmonic Motion", width / 2, 30);
+            
+            const amplitude = x0 - xEq;
+            x = xEq + amplitude * Math.cos(omega * t);
+            v = -amplitude * omega * Math.sin(omega * t);
+            const a = -k * (x - xEq) / mass;
+
+            history.x.push(x);
+            history.t.push(t);
+            history.kEnergy.push(0.5 * mass * v * v);
+            history.uSpring.push(0.5 * k * x * x);
+            history.uGrav.push(-mass * g * x);
+            if (history.t.length > maxPoints) {
+                history.x.shift();
+                history.t.shift();
+                history.kEnergy.shift();
+                history.uSpring.shift();
+                history.uGrav.shift();
+            }
+
+            const springTop = 100;
+            const L = x * 100;
+            noFill();
+            stroke(0);
+            beginShape();
+            for (let i = 0; i <= 20; i++) {
+                let t_spring = i / 20;
+                let theta = 2 * PI * N * t_spring;
+                let px = 400 + r * cos(theta);
+                let py = springTop + t_spring * L;
+                curveVertex(px, py);
+            }
+            endShape();
+
+            const massY = springTop + x * 100;
+            fill(150);
+            rect(380, massY, 40, 40);
+
+            stroke(255, 0, 0);
+            line(400, springTop + xEq * 100, 400, springTop + xEq * 100);
+
+            let pos_yMin = x_range_min - 0.2 * (x_range_max - x_range_min);
+            let pos_yMax = x_range_max + 0.2 * (x_range_max - x_range_min);
+            drawGraph(50, 400, 300, 150, history.t, history.x, 'Position vs. Time', pos_yMin, pos_yMax, color(0, 0, 255), 'Position (m)');
+
+            const totalEnergy = history.kEnergy.map((k, i) => k + history.uSpring[i] + history.uGrav[i]);
+            let allEnergies = history.kEnergy.concat(history.uSpring).concat(history.uGrav).concat(totalEnergy);
+            if (allEnergies.length > 0) {
+                let energyMin = Math.min(...allEnergies);
+                let energyMax = Math.max(...allEnergies);
+                let range = energyMax - energyMin;
+                let yMin_energy = energyMin - 0.2 * range;
+                let yMax_energy = energyMax + 0.2 * range;
+                drawGraph(450, 400, 300, 150, history.t, history.kEnergy, 'Energy vs. Time', yMin_energy, yMax_energy, color(255, 0, 0), 'Energy (J)', [
+                    { data: history.uSpring, color: color(0, 255, 0), label: 'U_spring' },
+                    { data: history.uGrav, color: color(0, 0, 255), label: 'U_grav' },
+                    { data: totalEnergy, color: color(255, 0, 255), label: 'Total E' }
+                ]);
+
+                fill(0);
+                textSize(12);
+                text("Kinetic Energy", 450, 570);
+                fill(255, 0, 0);
+                rect(450 + textWidth("Kinetic Energy") + 5, 570 - 6, 12, 12);
+                fill(0);
+                text("Spring Potential", 450, 590);
+                fill(0, 255, 0);
+                rect(450 + textWidth("Spring Potential") + 5, 590 - 6, 12, 12);
+                fill(0);
+                text("Gravitational Potential", 450, 610);
+                fill(0, 0, 255);
+                rect(450 + textWidth("Gravitational Potential") + 5, 610 - 6, 12, 12);
+                fill(0);
+                text("Total Energy", 450, 630);
+                fill(255, 0, 255);
+                rect(450 + textWidth("Total Energy") + 5, 630 - 6, 12, 12);
+            }
+
+            document.getElementById('equation').innerHTML = 
+                `x(t) = ${xEq.toFixed(2)} + ${(amplitude).toFixed(2)} cos(${omega.toFixed(2)} t)<br>` +
+                `Current x = ${x.toFixed(2)} m, v = ${v.toFixed(2)} m/s`;
+
+            t += 0.016;
+        }
+
+        function drawGraph(x, y, w, h, xData, yData, title, yMin, yMax, col, yLabel, extraCurves = []) {
+            stroke(0);
+            noFill();
+            rect(x, y, w, h);
+            fill(0);
+            textSize(14);
+            text(title, x + w/2 - textWidth(title)/2, y - 10);
+            
+            text("Time (s)", x + w/2, y + h + 20);
+            
+            push();
+            translate(x - 40, y + h/2);
+            rotate(-PI / 2);
+            text(yLabel, 0, 0);
+            pop();
+            
+            stroke(200);
+            for (let i = 0; i <= 5; i++) {
+                let gy = map(i / 5, 0, 1, y + h, y);
+                line(x, gy, x + w, gy);
+            }
+            
+            noFill();
+            stroke(col);
+            beginShape();
+            for (let i = 0; i < xData.length; i++) {
+                let px = map(i, 0, maxPoints, x, x + w);
+                let py = map(yData[i], yMin, yMax, y + h, y);
+                vertex(px, py);
+            }
+            endShape();
+
+            for (let curve of extraCurves) {
+                stroke(curve.color);
+                beginShape();
+                for (let i = 0; i < xData.length; i++) {
+                    let px = map(i, 0, maxPoints, x, x + w);
+                    let py = map(curve.data[i], yMin, yMax, y + h, y);
+                    vertex(px, py);
+                }
+                endShape();
+            }
+        }
+
+        function restart() {
+            initializeSimulation();
+        }
+    </script>
+</body>
+</html>

@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Mass-Spring SHM Simulation</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f0f0f0;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+        canvas {
+            border: 1px solid #ccc;
+        }
+        .controls {
+            margin: 20px 0;
+            text-align: center;
+        }
+        .controls label {
+            margin-right: 10px;
+        }
+        .display {
+            margin-top: 20px;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="controls">
+        <label>Mass (kg): <input type="number" id="mass" value="1" min="0.1" step="0.1"></label>
+        <label>Spring Constant (N/m): <input type="number" id="k" value="10" min="1" step="1"></label>
+        <label>Initial Position (m): <input type="number" id="x0" value="0.5" step="0.1"></label>
+        <label>Celestial Object: 
+            <select id="celestial">
+                <option value="9.8">Earth (g = 9.8 m/s²)</option>
+                <option value="1.6">Moon (g = 1.6 m/s²)</option>
+                <option value="3.7">Mars (g = 3.7 m/s²)</option>
+                <option value="24.8">Jupiter (g = 24.8 m/s²)</option>
+            </select>
+        </label>
+        <button onclick="restart()">Restart Simulation</button>
+    </div>
+    <div class="display" id="equation"></div>
+    <script>
+        let mass = 1;
+        let k = 10;
+        let g = 9.8;
+        let x0 = 0.5;
+        let t = 0;
+        let x, v, omega, xEq;
+        const history = { x: [], t: [], kEnergy: [], uSpring: [], uGrav: [] };
+        const maxPoints = 200;
+
+        function setup() {
+            createCanvas(800, 600);
+            frameRate(60);
+            initializeSimulation();
+        }
+
+        function initializeSimulation() {
+            mass = parseFloat(document.getElementById('mass').value);
+            k = parseFloat(document.getElementById('k').value);
+            g = parseFloat(document.getElementById('celestial').value);
+            x0 = parseFloat(document.getElementById('x0').value);
+            omega = Math.sqrt(k / mass);
+            xEq = (mass * g) / k; // Equilibrium position
+            t = 0;
+            x = x0;
+            v = 0; // Initial velocity set to zero for simplicity
+            history.x = [];
+            history.t = [];
+            history.kEnergy = [];
+            history.uSpring = [];
+            history.uGrav = [];
+        }
+
+        function draw() {
+            background(255);
+            
+            // Calculate position
+            const amplitude = x0 - xEq;
+            x = xEq + amplitude * Math.cos(omega * t);
+            v = -amplitude * omega * Math.sin(omega * t);
+            const a = -k * (x - xEq) / mass;
+
+            // Update history for graphs
+            history.x.push(x);
+            history.t.push(t);
+            history.kEnergy.push(0.5 * mass * v * v);
+            history.uSpring.push(0.5 * k * x * x);
+            history.uGrav.push(mass * g * x);
+            if (history.t.length > maxPoints) {
+                history.x.shift();
+                history.t.shift();
+                history.kEnergy.shift();
+                history.uSpring.shift();
+                history.uGrav.shift();
+            }
+
+            // Draw spring and mass
+            const springTop = 100;
+            const massY = springTop + x * 100; // Scale for visibility
+            stroke(0);
+            line(400, springTop, 400, massY); // Spring
+            fill(150);
+            rect(380, massY, 40, 40); // Mass
+            stroke(255, 0, 0);
+            line(400, springTop + xEq * 100, 400, springTop + xEq * 100); // Equilibrium line
+
+            // Draw position graph
+            drawGraph(50, 400, 300, 150, history.t, history.x, 'Position (m)', -1, 1, color(0, 0, 255));
+
+            // Draw energy graph
+            const totalEnergy = history.kEnergy.map((k, i) => k + history.uSpring[i] + history.uGrav[i]);
+            drawGraph(450, 400, 300, 150, history.t, history.kEnergy, 'Energy (J)', 0, maxEnergy(), color(255, 0, 0), [
+                { data: history.uSpring, color: color(0, 255, 0), label: 'U_spring' },
+                { data: history.uGrav, color: color(0, 0, 255), label: 'U_grav' },
+                { data: totalEnergy, color: color(0), label: 'Total E' }
+            ]);
+
+            // Update equation display
+            document.getElementById('equation').innerHTML = 
+                `x(t) = ${xEq.toFixed(2)} + ${(amplitude).toFixed(2)} cos(${omega.toFixed(2)} t)<br>` +
+                `Current x = ${x.toFixed(2)} m, v = ${v.toFixed(2)} m/s`;
+
+            t += 0.016; // Approximate time step for 60 fps
+        }
+
+        function drawGraph(x, y, w, h, xData, yData, title, yMin, yMax, col, extraCurves = []) {
+            stroke(0);
+            noFill();
+            rect(x, y, w, h);
+            text(title, x + w/2 - textWidth(title)/2, y - 10);
+
+            stroke(col);
+            beginShape();
+            for (let i = 0; i < xData.length; i++) {
+                let px = map(i, 0, maxPoints, x, x + w);
+                let py = map(yData[i], yMin, yMax, y + h, y);
+                vertex(px, py);
+            }
+            endShape();
+
+            for (let curve of extraCurves) {
+                stroke(curve.color);
+                beginShape();
+                for (let i = 0; i < xData.length; i++) {
+                    let px = map(i, 0, maxPoints, x, x + w);
+                    let py = map(curve.data[i], yMin, yMax, y + h, y);
+                    vertex(px, py);
+                }
+                endShape();
+            }
+        }
+
+        function maxEnergy() {
+            const maxK = Math.max(...history.kEnergy);
+            const maxUs = Math.max(...history.uSpring);
+            const maxUg = Math.max(...history.uGrav);
+            return Math.max(maxK, maxUs, maxUg, 10) * 1.2;
+        }
+
+        function restart() {
+            initializeSimulation();
+        }
+    </script>
+</body>
+</html>

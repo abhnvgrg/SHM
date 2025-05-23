@@ -1,0 +1,300 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Mass-Spring SHM Simulation</title>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/p5.js/1.4.2/p5.min.js"></script>
+  <style>
+    body {
+      font-family: 'Segoe UI', Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #eef4f0;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+    }
+    canvas {
+      border: 2px solid #28a745;
+      border-radius: 8px;
+      background: #fff;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      margin-bottom: 20px;
+    }
+    .controls {
+      width: 1000px;
+      background: #fff;
+      padding: 20px;
+      margin-bottom: 20px;
+      border-radius: 8px;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+      gap: 15px 25px;
+      align-items: center;
+    }
+    .controls label {
+      display: flex;
+      flex-direction: column;
+      font-size: 16px;
+      color: #333;
+    }
+    .controls label span {
+      margin-bottom: 6px;
+      font-weight: 600;
+    }
+    .controls select,
+    .controls input {
+      padding: 8px 10px;
+      border: 1px solid #ccc;
+      border-radius: 4px;
+      font-size: 14px;
+      width: 100%;
+    }
+    .controls input[type="checkbox"] {
+      width: auto;
+      margin-right: 8px;
+    }
+    .controls .checkbox-label {
+      flex-direction: row;
+      align-items: center;
+    }
+    .controls button {
+      grid-column: span 2;
+      padding: 10px 20px;
+      border: none;
+      border-radius: 4px;
+      background: #28a745;
+      color: #fff;
+      font-size: 16px;
+      cursor: pointer;
+      justify-self: start;
+    }
+    .controls button:hover {
+      background: #1e7e34;
+    }
+    .display {
+      width: 1000px;
+      text-align: center;
+      font-size: 18px;
+      margin: 10px 0;
+      line-height: 1.4;
+    }
+  </style>
+</head>
+<body>
+  <div class="controls">
+    <label><span>Simulation Mode</span><select id="mode"><option value="classical">Classical</option><option value="quantum">Quantum</option></select></label>
+    <label><span>Number of Masses</span><select id="numMasses"><option>1</option><option>2</option><option>3</option><option>4</option></select></label>
+    <label><span>Mass (m) in kg</span><input id="mass" type="number" value="1" min="0.1" step="0.1"></label>
+    <label><span>Spring Constant (k) in N/m</span><input id="k" type="number" value="10" min="0.1" step="0.1"></label>
+    <label><span>Damping Coefficient (b) in Ns/m</span><input id="damping" type="number" value="0" min="0" step="0.1"></label>
+    <label><span>Force Amplitude (F₀) in N</span><input id="F0" type="number" value="0" step="0.1"></label>
+    <label><span>Force Frequency (ω) in rad/s</span><input id="omega" type="number" value="0" step="0.1"></label>
+    <label class="checkbox-label"><input id="nonlinear" type="checkbox"><span>Enable Nonlinear Spring</span></label>
+    <label><span>Nonlinear Coefficient (α) in N/m³</span><input id="alpha" type="number" value="0" step="0.1"></label>
+    <label><span>Quantum State (n)</span><input id="n" type="number" value="0" min="0" max="5" step="1"></label>
+    <label><span>Gravity (g) in m/s²</span><select id="celestial"><option value="9.8">Earth</option><option value="3.7">Mercury</option><option value="8.87">Venus</option><option value="1.62">Moon</option><option value="3.71">Mars</option><option value="24.79">Jupiter</option><option value="10.44">Saturn</option><option value="8.69">Uranus</option><option value="11.15">Neptune</option><option value="0.62">Pluto</option></select></label>
+    <button id="restartBtn">Restart Simulation</button>
+    <button id="exportBtn">Export CSV</button>
+  </div>
+  <div id="equationDisplay" class="display"></div>
+  <div id="statusDisplay" class="display"></div>
+  <script>
+    const CFG = { L: 0.5, SCALE: 100, MAX: 200, dt: 1/60, HBAR: 1 };
+    let mode, N, m, k, b, F0, omega, nonlin, alpha, g, n, t = 0;
+    let masses = [], hist = { t: [], y: [], KE: [], US: [], UG: [] };
+    let els = {};
+
+    function setup() {
+      createCanvas(1000, 800);
+      frameRate(60);
+      ['mode','numMasses','mass','k','damping','F0','omega','nonlinear','alpha','n','celestial','equationDisplay','statusDisplay']
+        .forEach(id => els[id] = document.getElementById(id));
+      select('#restartBtn').mousePressed(initSim);
+      select('#exportBtn').mousePressed(exportCSV);
+      initSim();
+    }
+
+    function initSim() {
+      mode = els.mode.value;
+      N = +els.numMasses.value;
+      m = +els.mass.value;
+      k = +els.k.value;
+      b = +els.damping.value;
+      F0 = +els.F0.value;
+      omega = +els.omega.value;
+      nonlin = els.nonlinear.checked;
+      alpha = +els.alpha.value;
+      g = +els.celestial.value;
+      n = +els.n.value;
+      t = 0;
+      Object.keys(hist).forEach(key => hist[key] = []);
+      masses = [];
+      if (mode === 'classical') for (let i = 0; i < N; i++) masses.push({ y: (i + 1) * CFG.L, v: 0 });
+    }
+
+    function compF(Y, V, time) {
+      let F = Array(N).fill(0);
+      for (let j = 0; j < N; j++) {
+        let yj = Y[j];
+        let yL = j ? Y[j - 1] : 0;
+        let yR = j < N - 1 ? Y[j + 1] : null;
+        let dL = yj - yL - CFG.L;
+        F[j] += -k * dL - (nonlin ? alpha * dL ** 3 : 0);
+        if (yR !== null) {
+          let dR = yR - yj - CFG.L;
+          F[j] += k * dR + (nonlin ? alpha * dR ** 3 : 0);
+        }
+        F[j] += -b * V[j] + m * g;
+        if (j === N - 1 && F0) F[j] += F0 * cos(omega * time);
+      }
+      return F;
+    }
+
+    function rk4Step(Y, tt, dt) {
+      function deriv(Yv, t0) {
+        let ys = [], vs = [];
+        for (let i = 0; i < Yv.length / 2; i++) {
+          ys.push(Yv[2 * i]);
+          vs.push(Yv[2 * i + 1]);
+        }
+        let Fs = compF(ys, vs, t0);
+        return Yv.map((v, i) => (i % 2 ? Fs[(i - 1) / 2] / m : vs[i / 2]));
+      }
+      let k1 = deriv(Y, tt);
+      let k2 = deriv(Y.map((v, i) => v + 0.5 * dt * k1[i]), tt + 0.5 * dt);
+      let k3 = deriv(Y.map((v, i) => v + 0.5 * dt * k2[i]), tt + 0.5 * dt);
+      let k4 = deriv(Y.map((v, i) => v + dt * k3[i]), tt + dt);
+      return Y.map((v, i) => v + (dt * (k1[i] + 2 * k2[i] + 2 * k3[i] + k4[i])) / 6);
+    }
+
+    function draw() {
+      background('#fff');
+      textAlign(CENTER);
+      textSize(32);
+      fill('#333');
+      text('Mass-Spring SHM Simulator', width / 2, 40);
+
+      if (mode === 'classical') {
+        let state = masses.flatMap(o => [o.y, o.v]);
+        let nxt = rk4Step(state, t, CFG.dt);
+        masses.forEach((o, i) => { o.y = nxt[2 * i]; o.v = nxt[2 * i + 1]; });
+        t += CFG.dt;
+        hist.t.push(t);
+        hist.y.push(masses[N - 1].y);
+
+        let KE = 0, US = 0, UG = 0;
+        masses.forEach((o, i) => {
+          KE += 0.5 * m * o.v ** 2;
+          let d = o.y - (i ? masses[i - 1].y : 0) - CFG.L;
+          US += 0.5 * k * d * d;
+          UG += -m * g * o.y;
+        });
+        hist.KE.push(KE);
+        hist.US.push(US);
+        hist.UG.push(UG);
+
+        if (hist.t.length > CFG.MAX) Object.keys(hist).forEach(k => hist[k].shift());
+
+        // Draw springs as coiled sine shapes
+        stroke('#28a745');
+        noFill();
+        masses.forEach((o, i) => {
+          let y0 = (i ? masses[i - 1].y : 0) * CFG.SCALE;
+          let y1 = o.y * CFG.SCALE;
+          beginShape();
+          let segs = 60;
+          for (let j = 0; j <= segs; j++) {
+            let pct = j / segs;
+            let x = width / 2 + sin(pct * TWO_PI * 8) * 12;
+            let y = y0 + pct * (y1 - y0);
+            vertex(x, y);
+          }
+          endShape();
+        });
+
+        // Draw masses aligned
+        fill('#555');
+        noStroke();
+        masses.forEach(o => rect(width / 2 - 20, o.y * CFG.SCALE - 20, 40, 40, 4));
+
+        // Graphs
+        drawGraph(50, 450, 400, 200, 'Position vs Time', 'Position y (m)', hist.t, hist.y);
+        drawGraph(500, 450, 400, 200, 'Energy vs Time', 'Energy (J)', hist.t, hist.KE, hist.US, hist.UG);
+
+        els.equationDisplay.innerHTML = 'Equation: m ÿ + b ẏ + k y = F₀ cos(ωt) + m g';
+        els.statusDisplay.innerHTML = masses.map((o, i) =>
+          `Mass ${i + 1}: y=${o.y.toFixed(2)} m, v=${o.v.toFixed(2)} m/s`
+        ).join('<br>');
+      } else {
+        els.equationDisplay.innerHTML = 'Quantum mode not implemented.';
+        els.statusDisplay.innerHTML = '';
+      }
+    }
+
+    // drawGraph handles multiple data series with green/blue/red accents
+    function drawGraph(x, y, w, h, title, ylabel, tx, ...series) {
+      push();
+      stroke(0);
+      noFill();
+      rect(x, y, w, h);
+
+      fill(0);
+      textSize(18);
+      textAlign(CENTER);
+      text(title, x + w / 2, y - 10);
+
+      textAlign(LEFT);
+      text(ylabel, x, y - 5);
+
+      // Grid lines
+      stroke('#ccc');
+      for (let i = 0; i <= 5; i++) {
+        let gy = map(i, 0, 5, y + h, y);
+        line(x, gy, x + w, gy);
+      }
+
+      // Axes
+      stroke('#333');
+      line(x, y, x, y + h);
+      line(x, y + h, x + w, y + h);
+
+      // Data bounds
+      let all = series.flat();
+      let minY = Math.min(...all);
+      let maxY = Math.max(...all);
+
+      // Colors: blue, red, green, then grey
+      const cols = ['#007bff', '#dc3545', '#28a745', '#6c757d'];
+
+      series.forEach((data, i) => {
+        stroke(cols[i] || '#000');
+        noFill();
+        beginShape();
+        data.forEach((v, j) => {
+          let px = map(j, 0, CFG.MAX, x, x + w);
+          let py = constrain(map(v, minY, maxY, y + h, y), y, y + h);
+          vertex(px, py);
+        });
+        endShape();
+      });
+      pop();
+    }
+
+    function exportCSV() {
+      if (mode !== 'classical') { alert('Classical only'); return; }
+      let csv = 'time,y,KE,US,UG\n';
+      hist.t.forEach((tt, i) => { csv += `${tt},${hist.y[i]},${hist.KE[i]},${hist.US[i]},${hist.UG[i]}\n`; });
+      let blob = new Blob([csv], { type: 'text/csv' });
+      let a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'mass_spring_data.csv';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+    }
+  </script>
+</body>
+</html>
