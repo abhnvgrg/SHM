@@ -1,9 +1,10 @@
-#README — Mass-Spring SHM Simulation Project (Versions 1 to 6)
-Overview
+**README — Mass-Spring SHM Simulation Project (Versions 1 to 6)**
+
+**Overview**
 This project simulates Simple Harmonic Motion (SHM) of a mass-spring system using JavaScript and p5.js, evolving through six versions (v1–v6). It progressively enhances the physics modeling, visualization, user controls, and feature set, culminating in a rich interactive simulation with multiple masses, damping, nonlinear springs, external forces, and even a placeholder for quantum simulation.
 
-Version Progress Summary
-Version 1 — Basic Single Mass-Spring Oscillator
+**Version Progress Summary
+Version 1 — Basic Single Mass-Spring Oscillator**
 Features:
 
 Simulated a single mass attached to a spring using basic SHM equation 
@@ -33,7 +34,7 @@ Purpose:
 
 Proof of concept and visualization of fundamental SHM.
 
-Version 2 — User Input for Parameters
+**Version 2 — User Input for Parameters**
 Features:
 
 Added HTML input fields for mass (m) and spring constant (k).
@@ -52,7 +53,7 @@ Improvements:
 
 Introduced basic UI, making the simulation interactive.
 
-Version 3 — Inclusion of Damping and External Forcing
+**Version 3 — Inclusion of Damping and External Forcing**
 Features:
 
 Added damping coefficient (b) input.
@@ -100,7 +101,7 @@ Visualization:
 
 Oscillation amplitude responded dynamically to damping and forcing parameters.
 
-Version 4 — Multiple Masses and Springs (Mass Chain)
+**Version 4 — Multiple Masses and Springs (Mass Chain)**
 Features:
 
 Allowed simulation of multiple masses connected in series by springs (up to 4 masses).
@@ -121,7 +122,7 @@ Increased computational complexity.
 
 Visual representation of springs with sinusoidal wave shape for better aesthetics.
 
-Version 5 — Nonlinear Spring and Gravity Effects
+**Version 5 — Nonlinear Spring and Gravity Effects**
 Features:
 
 Added option to enable nonlinear spring behavior via cubic term with coefficient α.
@@ -140,7 +141,7 @@ Visualization:
 
 Added graphs for position vs. time and energy components (kinetic, spring potential, gravitational potential).
 
-Version 6 — Final Refinements and Additional Features
+**Version 6 — Final Refinements and Additional Features**
 Features:
 
 Polished UI and styling for user-friendly control panel sidebar.
@@ -177,7 +178,7 @@ Quantum mode not yet implemented.
 
 Export limited to classical mode data.
 
-General Technical Notes
+**General Technical Notes**
 Physics Modeling:
 
 The simulation models vertical motion of masses connected by springs under Newtonian mechanics.
@@ -214,7 +215,7 @@ Data Export:
 
 Simulation data (time, position, kinetic, potential energies) exportable as CSV for further analysis.
 
-How to Use (v6)
+**How to Use (v6)**
 Adjust parameters in the sidebar:
 
 Choose simulation mode (currently only classical works).
@@ -235,5 +236,5 @@ Observe the simulation animation and energy graphs.
 
 Optionally, click Export CSV to save data from the classical simulation.
 
-Conclusion
+**Conclusion**
 This project progressively builds from a simple single-mass SHM model into a flexible, interactive multi-mass nonlinear spring system simulator with realistic physics and user-friendly controls. The final version (v6) balances complexity and usability, providing a rich educational tool for visualizing and analyzing mass-spring dynamics under various physical conditions.
