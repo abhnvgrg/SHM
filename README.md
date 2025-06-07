@@ -466,11 +466,7 @@ The project demonstrates that web-based physics simulations can serve as powerfu
 
 ## 12. Appendices
 
-### Appendix A: Complete Source Code
-
-*[Note: The complete HTML/JavaScript source code would be included here in the actual report]*
-
-### Appendix B: Sample CSV Data Files
+### Appendix A: Sample CSV Data Files
 
 **Sample Output for Undamped Oscillation:**
 ```csv
@@ -482,7 +478,7 @@ time,y,KE,US,UG
 ...
 ```
 
-### Appendix C: Mathematical Derivations
+### Appendix B: Mathematical Derivations
 
 **Derivation of Coupled Oscillator Normal Modes:**
 
@@ -496,7 +492,7 @@ det(K - ω²M) = 0
 
 Where K is the stiffness matrix and M is the mass matrix.
 
-### Appendix D: Validation Studies
+### Appendix C: Validation Studies
 
 **Comparison with Analytical Solutions:**
 
