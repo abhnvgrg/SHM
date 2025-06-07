@@ -519,8 +519,6 @@ For all test cases, ε < 10⁻⁴, demonstrating excellent energy conservation.
 ---
 
 **Report Statistics:**
-- Total Pages: 15
-- Word Count: ~4,500 words
 - Figures: 8 (including graphs and tables)
 - References: 14
 - Appendices: 4
