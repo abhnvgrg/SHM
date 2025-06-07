@@ -3,13 +3,6 @@
 
 ---
 
-**Student Name:** [Your Name]  
-**Admission Number:** [Your Admission Number]  
-**Course:** [Your Course Name]  
-**Date:** June 2025  
-**Subject:** Physics Project
-
----
 
 ## Table of Contents
 
